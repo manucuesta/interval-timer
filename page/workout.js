@@ -132,9 +132,44 @@ Page({
       click_func: function () { self.stop() }
     })
 
+    // Swipe-right leaves the workout RUNNING and goes to the watch face. The default for a
+    // right swipe is goBack(), which lands on the menu — and the menu redirects straight back
+    // here while a workout is active, which looked like the screen "reloading".
+    try {
+      hmApp.registerGestureEvent(function (event) {
+        if (event === hmApp.gesture.RIGHT) {
+          self.leaveToWatchface()
+          return true // skip the default goBack()
+        }
+        return false
+      })
+    } catch (e) {}
+
     this.updateToggle()
     this.update()
     this.startTimer()
+  },
+
+  // Exit to the watch face with the workout still active: the session stays saved and the
+  // alarms stay armed, so interval buzzes keep firing and relaunch back into this page.
+  leaveToWatchface() {
+    var s = this.state.session
+    if (s) setSession(s) // persist latest state for the relaunch
+    this.clearTimer()
+    try {
+      hmApp.gotoHome()
+    } catch (e) {}
+  },
+
+  // Restore the system's default gesture handling for the other pages.
+  restoreGestures() {
+    try {
+      if (hmApp.unregisterGestureEvent) {
+        hmApp.unregisterGestureEvent()
+      } else {
+        hmApp.registerGestureEvent(function () { return false })
+      }
+    } catch (e) {}
   },
 
   // Show play when paused/finished, pause when running.
@@ -299,6 +334,7 @@ Page({
   onDestroy() {
     // Do NOT cancel the alarm here — screen-off may destroy this page, and the pending alarm
     // is what keeps the interval buzzes going. Stop is what ends the workout + cancels it.
+    this.restoreGestures()
     this.clearTimer()
     vibrateStop()
   }
