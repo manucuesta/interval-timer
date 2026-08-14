@@ -83,6 +83,70 @@ export function setCustomWorkout(cfg) {
   saveState(s)
 }
 
+// A tiny separate "a workout is active" flag file. Removed on Stop — the definitive gate
+// that stops a relaunch from resuming/rescheduling after Stop, independent of the session write.
+var ACTIVE_FILE = 'interval_timer_active'
+
+export function setActive() {
+  try {
+    var f = hmFS.open(ACTIVE_FILE, hmFS.O_RDWR | hmFS.O_CREAT | hmFS.O_TRUNC)
+    var buf = str2ab('1')
+    hmFS.write(f, buf, 0, buf.byteLength)
+    hmFS.close(f)
+  } catch (e) {}
+}
+
+export function clearActive() {
+  try {
+    hmFS.remove(ACTIVE_FILE)
+  } catch (e) {}
+}
+
+export function isActive() {
+  try {
+    var stat = hmFS.stat(ACTIVE_FILE)
+    return stat[1] === 0
+  } catch (e) {
+    return false
+  }
+}
+
+// A one-shot "the user just chose a workout in the menu" flag. Set right before navigating to
+// the workout page; consumed by its onInit. This is what distinguishes a real user start from
+// an OS/alarm relaunch (which restores the app with the original launch param but sets no flag).
+var PENDING_FILE = 'interval_timer_pending'
+
+export function setPendingStart(val) {
+  try {
+    var f = hmFS.open(PENDING_FILE, hmFS.O_RDWR | hmFS.O_CREAT | hmFS.O_TRUNC)
+    var buf = str2ab(String(val))
+    hmFS.write(f, buf, 0, buf.byteLength)
+    hmFS.close(f)
+  } catch (e) {}
+}
+
+export function getPendingStart() {
+  try {
+    var stat = hmFS.stat(PENDING_FILE)
+    if (stat[1] !== 0 || !stat[0] || !stat[0].size) return null
+    var size = stat[0].size
+    var unit = new Uint16Array(new ArrayBuffer(size))
+    var f = hmFS.open(PENDING_FILE, hmFS.O_RDONLY)
+    hmFS.seek(f, 0, hmFS.SEEK_SET)
+    hmFS.read(f, unit.buffer, 0, size)
+    hmFS.close(f)
+    return String.fromCharCode.apply(null, unit) || null
+  } catch (e) {
+    return null
+  }
+}
+
+export function clearPendingStart() {
+  try {
+    hmFS.remove(PENDING_FILE)
+  } catch (e) {}
+}
+
 // Active workout session — persisted so an alarm relaunch can rebuild the timer state.
 export function getSession() {
   var s = loadState()

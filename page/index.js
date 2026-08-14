@@ -1,6 +1,6 @@
 import Engine from '../utils/workouts'
 import { deviceSize } from '../utils/watch'
-import { setLastPresetIndex, getSession } from '../utils/storage'
+import { setLastPresetIndex, getSession, isActive, setPendingStart } from '../utils/storage'
 
 var PRESETS = Engine.PRESETS
 var SIZE = deviceSize()
@@ -38,6 +38,7 @@ Page({
   // in progress (a background alarm cold-launched the app to its home page), redirect into
   // the workout immediately.
   onInit() {
+    if (!isActive()) return // Stop removed the flag — stay on the menu
     var session = getSession()
     if (session && !session.finishedBuzzed) {
       this._redirecting = true
@@ -100,6 +101,7 @@ Page({
           return
         }
         setLastPresetIndex(r.i)
+        setPendingStart('' + r.i) // mark this as a real user-initiated start
         try {
           hmApp.gotoPage({ file: 'page/workout', param: '' + r.i })
         } catch (e) {}

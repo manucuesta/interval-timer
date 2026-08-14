@@ -1,6 +1,6 @@
 import Engine from '../utils/workouts'
 import { deviceSize, buzz, vibrateStop, scheduleAlarm, cancelAlarm } from '../utils/watch'
-import { getCustomWorkout, getSession, setSession, clearSession } from '../utils/storage'
+import { getCustomWorkout, getSession, setSession, clearSession, setActive, clearActive, isActive, getPendingStart, clearPendingStart } from '../utils/storage'
 
 var PRESETS = Engine.PRESETS
 var formatTime = Engine.formatTime
@@ -39,23 +39,28 @@ Page({
   },
 
   onInit(param) {
-    if (param === 'resume') {
-      // Relaunched by an alarm (or reopened) — continue the persisted session.
-      this.state.session = getSession()
+    // A fresh workout starts ONLY when the user just chose one in the menu (pendingStart flag).
+    // An OS/alarm relaunch restores the app with the original launch param but sets no flag, so
+    // it resumes the active session instead of restarting — this kills the 5s-countdown loop.
+    var pending = getPendingStart()
+    if (pending == null) {
+      this.state.session = isActive() ? getSession() : null
       return
     }
-    // Fresh start from the menu. Drop any previous session/alarms, begin a new one.
+    clearPendingStart()
+
+    // Fresh start from the menu. Cancel EVERY alarm from any previous session, begin new.
     var prev = getSession()
-    if (prev) {
-      cancelAlarm(prev.alarmId)
-      cancelAlarm(prev.secondBuzzAlarmId)
+    if (prev && prev.alarmIds) {
+      for (var i = 0; i < prev.alarmIds.length; i++) cancelAlarm(prev.alarmIds[i])
     }
+    setActive()
 
     // Custom auto-starts (running); presets start PAUSED until the user taps play.
-    var autostart = param === 'custom'
+    var autostart = pending === 'custom'
     var now = Date.now()
     this.state.session = {
-      workout: resolveWorkout(param),
+      workout: resolveWorkout(pending),
       startTs: now,
       paused: !autostart,
       pauseStartTs: now,
@@ -65,7 +70,8 @@ Page({
       finishedBuzzed: false,
       scheduledForIndex: -1,
       alarmId: null,
-      secondBuzzAlarmId: null
+      secondBuzzAlarmId: null,
+      alarmIds: []
     }
     setSession(this.state.session)
   },
@@ -154,6 +160,28 @@ Page({
     }
   },
 
+  // Schedule an alarm AND remember its id, so Stop can cancel every alarm we ever created —
+  // not just the latest two (orphaned ids from earlier relaunches were what kept looping).
+  armAlarm(delaySec) {
+    var s = this.state.session
+    var id = scheduleAlarm(APPID, PAGE, delaySec, 'resume')
+    if (id !== null && id !== undefined) {
+      if (!s.alarmIds) s.alarmIds = []
+      s.alarmIds.push(id)
+    }
+    return id
+  },
+
+  cancelAllAlarms() {
+    var s = this.state.session
+    if (!s) return
+    var ids = s.alarmIds || []
+    for (var i = 0; i < ids.length; i++) cancelAlarm(ids[i])
+    s.alarmIds = []
+    s.alarmId = null
+    s.secondBuzzAlarmId = null
+  },
+
   // Single source of truth: recompute state from timestamps, buzz new intervals
   // (de-duplicated), keep the next alarm scheduled, and render.
   update() {
@@ -170,10 +198,8 @@ Page({
         buzz()
         s.finishedBuzzed = true
       }
-      cancelAlarm(s.alarmId)
-      cancelAlarm(s.secondBuzzAlarmId)
-      s.alarmId = null
-      s.secondBuzzAlarmId = null
+      this.cancelAllAlarms()
+      clearActive()
       setSession(s)
       this.showFinished()
       this.clearTimer()
@@ -189,7 +215,7 @@ Page({
         s.secondBuzzPending = true
         // Dedicated wake-up ~1s later so the second buzz also fires in the background.
         cancelAlarm(s.secondBuzzAlarmId)
-        s.secondBuzzAlarmId = scheduleAlarm(APPID, PAGE, 1, 'resume')
+        s.secondBuzzAlarmId = this.armAlarm(1)
         changed = true
       } else if (s.secondBuzzPending && now - s.firstBuzzTs >= 700) {
         buzz() // second buzz ~1s later
@@ -202,7 +228,7 @@ Page({
       // screen off / app suspended.
       if (s.scheduledForIndex !== st.index) {
         cancelAlarm(s.alarmId)
-        s.alarmId = scheduleAlarm(APPID, PAGE, Math.ceil(st.remaining), 'resume')
+        s.alarmId = this.armAlarm(Math.ceil(st.remaining))
         s.scheduledForIndex = st.index
         changed = true
       }
@@ -237,10 +263,7 @@ Page({
       s.paused = true
       s.pauseStartTs = now
       s.secondBuzzPending = false
-      cancelAlarm(s.alarmId)
-      cancelAlarm(s.secondBuzzAlarmId)
-      s.alarmId = null
-      s.secondBuzzAlarmId = null
+      this.cancelAllAlarms()
       s.scheduledForIndex = -1
       vibrateStop()
     } else {
@@ -264,11 +287,8 @@ Page({
   },
 
   stop() {
-    var s = this.state.session
-    if (s) {
-      cancelAlarm(s.alarmId)
-      cancelAlarm(s.secondBuzzAlarmId)
-    }
+    this.cancelAllAlarms()
+    clearActive()
     clearSession()
     this.state.session = null
     this.clearTimer()

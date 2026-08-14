@@ -1,6 +1,6 @@
 import Engine from '../utils/workouts'
 import { deviceSize } from '../utils/watch'
-import { getCustomWorkout, setCustomWorkout } from '../utils/storage'
+import { getCustomWorkout, setCustomWorkout, setPendingStart } from '../utils/storage'
 
 var formatTime = Engine.formatTime
 var SIZE = deviceSize()
@@ -86,6 +86,7 @@ Page({
       text: 'START', text_size: 28, color: 0xffffff,
       click_func: function () {
         setCustomWorkout(s.cfg)
+        setPendingStart('custom') // mark this as a real user-initiated start
         try {
           hmApp.gotoPage({ file: 'page/workout', param: 'custom' })
         } catch (e) {}
