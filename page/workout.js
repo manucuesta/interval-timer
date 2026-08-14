@@ -229,15 +229,24 @@ Page({
     var st = Engine.stateAtElapsed(s.workout, elapsed)
 
     if (st.finished) {
+      // Workout complete: three buzzes, so the end is clearly distinct from the two-buzz
+      // interval cue. The alarm relaunches the app at the final boundary, so the foreground
+      // timer is running and delivers buzzes 2 and 3 a second apart.
       if (!s.finishedBuzzed) {
         buzz()
         s.finishedBuzzed = true
+        s.finishBuzzesLeft = 2
+        s.lastFinishBuzzTs = now
+        this.cancelAllAlarms()
+        clearActive()
+        setSession(s)
+        this.showFinished()
+      } else if (s.finishBuzzesLeft > 0 && now - s.lastFinishBuzzTs >= 700) {
+        buzz()
+        s.finishBuzzesLeft--
+        s.lastFinishBuzzTs = now
       }
-      this.cancelAllAlarms()
-      clearActive()
-      setSession(s)
-      this.showFinished()
-      this.clearTimer()
+      if (!s.finishBuzzesLeft) this.clearTimer()
       return
     }
 

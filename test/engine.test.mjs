@@ -27,36 +27,38 @@ eq(E.formatTime(600), '10:00', 'ten minutes')
 console.log('buildPhases: Tabata (prepare 10, 20/10 x8)')
 const tabata = { name: 'Tabata', prepare: 10, work: 20, rest: 10, rounds: 8, sets: 1, cooldown: 0 }
 const p = E.buildPhases(tabata)
-eq(p.length, 1 + 8 + 7, 'phase count')
+eq(p.length, 1 + 8 + 8, 'phase count')
 eq(p[0].type, 'prepare', 'first is prepare')
 eq(p[1].type, 'work', 'then work')
 eq(p[2].type, 'rest', 'then rest')
-eq(p[p.length - 1].type, 'work', 'last phase is work (no trailing rest)')
-eq(E.totalDuration(p), 10 + 8 * 20 + 7 * 10, 'total duration')
+eq(p[p.length - 1].type, 'rest', 'last phase is rest (final round is work + rest)')
+eq(E.totalDuration(p), 10 + 8 * 20 + 8 * 10, 'total duration')
 
 console.log('buildPhases: sets with restBetweenSets')
 const multi = { name: 'M', prepare: 0, work: 30, rest: 15, rounds: 3, sets: 2, restBetweenSets: 60, cooldown: 20 }
 const pm = E.buildPhases(multi)
-eq(pm.length, 5 + 1 + 5 + 1, 'phase count with sets')
+// per set: 3 work + 3 rest = 6; one set-rest between the sets; then cooldown
+eq(pm.length, 6 + 1 + 6 + 1, 'phase count with sets')
 eq(pm.filter((x) => x.type === 'rest_set').length, 1, 'exactly one set-rest (not after final set)')
 eq(pm[pm.length - 1].type, 'cooldown', 'ends with cooldown')
-eq(E.totalDuration(pm), 2 * (3 * 30 + 2 * 15) + 60 + 20, 'total duration with sets')
+eq(E.totalDuration(pm), 2 * (3 * 30 + 3 * 15) + 60 + 20, 'total duration with sets')
 
 console.log('createRun: tick sequence on a tiny workout')
+// phases: prepare(2), work(3), rest(1), work(3), rest(1) => 10s
 const tiny = { name: 'T', prepare: 2, work: 3, rest: 1, rounds: 2, sets: 1, cooldown: 0 }
 const run = E.createRun(tiny)
-eq(run.total, 9, 'tiny total 9s')
+eq(run.total, 10, 'tiny total 10s')
 eq(run.current().type, 'prepare', 'starts in prepare')
 eq(run.current().remaining, 2, 'prepare remaining 2')
 
 const transitions = []
-for (let i = 0; i < 9; i++) {
+for (let i = 0; i < 10; i++) {
   run.tick(1).events.forEach((ev) => {
     if (ev.type === 'transition') transitions.push(ev.from.type + '->' + ev.to.type)
     if (ev.type === 'finished') transitions.push(ev.from.type + '->END')
   })
 }
-eq(transitions.join(','), 'prepare->work,work->rest,rest->work,work->END', 'transition order')
+eq(transitions.join(','), 'prepare->work,work->rest,rest->work,work->rest,rest->END', 'transition order')
 assert(run.isFinished(), 'run is finished after total seconds')
 
 console.log('createRun: overshoot carry (dt larger than remaining)')

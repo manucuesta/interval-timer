@@ -66,12 +66,11 @@ function buildPhases(config) {
     for (var r = 1; r <= w.rounds; r++) {
       phases.push(makePhase(PHASE.WORK, w.work, r, s, w))
 
-      var lastRound = r === w.rounds
-      var lastSet = s === w.sets
+      // Every round is work + rest, including the final one — a full round is worked
+      // and rested, so the workout ends only after the last rest has elapsed.
+      if (w.rest) phases.push(makePhase(PHASE.REST, w.rest, r, s, w))
 
-      if (!lastRound) {
-        if (w.rest) phases.push(makePhase(PHASE.REST, w.rest, r, s, w))
-      } else if (!lastSet && w.restBetweenSets) {
+      if (r === w.rounds && s !== w.sets && w.restBetweenSets) {
         phases.push(makePhase(PHASE.REST_SET, w.restBetweenSets, r, s, w))
       }
     }
