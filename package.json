@@ -1,0 +1,14 @@
+{
+  "name": "interval-timer",
+  "version": "1.0.0",
+  "description": "HIIT / interval workout timer for Amazfit GTR 3 Pro (Zepp OS 1.0)",
+  "main": "app.js",
+  "scripts": {
+    "test": "node test/engine.test.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@zeppos/device-types": "^2.0.0"
+  }
+}
