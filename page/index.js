@@ -51,6 +51,19 @@ Page({
   build() {
     if (this._redirecting) return
 
+    // The menu is the app's root screen, so swipe right leaves for the watch face. The
+    // default goBack() pops through stale pages left on the stack by earlier workouts,
+    // which made the menu re-appear again and again instead of exiting.
+    try {
+      hmApp.registerGestureEvent(function (event) {
+        if (event === hmApp.gesture.RIGHT) {
+          try { hmApp.gotoHome() } catch (e) {}
+          return true
+        }
+        return false
+      })
+    } catch (e) {}
+
     hmUI.createWidget(hmUI.widget.TEXT, {
       x: 0, y: 26, w: SIZE.w, h: 32,
       color: 0x777777, text_size: 24,

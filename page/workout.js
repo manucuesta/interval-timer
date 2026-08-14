@@ -35,7 +35,9 @@ Page({
     roundText: null,
     setText: null,
     playBtn: null,
-    pauseBtn: null
+    pauseBtn: null,
+    stopBtn: null,
+    stopBtnDone: null
   },
 
   onInit(param) {
@@ -81,10 +83,12 @@ Page({
     var s = this.state
 
     if (!s.session) {
-      // Nothing to resume (e.g. already stopped) — leave.
+      // Nothing to resume (e.g. already stopped) — show the menu instead.
       try {
-        hmApp.goBack()
-      } catch (e) {}
+        hmApp.reloadPage({ url: 'page/index' })
+      } catch (e) {
+        try { hmApp.goBack() } catch (e2) {}
+      }
       return
     }
 
@@ -126,8 +130,14 @@ Page({
       normal_src: 'icons/play_normal.png', press_src: 'icons/play_press.png',
       click_func: function () { self.togglePause() }
     })
-    hmUI.createWidget(hmUI.widget.BUTTON, {
+    s.stopBtn = hmUI.createWidget(hmUI.widget.BUTTON, {
       x: CX + GAP / 2, y: BTN_Y, w: BTN, h: BTN,
+      normal_src: 'icons/stop_normal.png', press_src: 'icons/stop_press.png',
+      click_func: function () { self.stop() }
+    })
+    // On the DONE screen the play/pause toggle is gone, so a single centred stop remains.
+    s.stopBtnDone = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: CX - BTN / 2, y: BTN_Y, w: BTN, h: BTN,
       normal_src: 'icons/stop_normal.png', press_src: 'icons/stop_press.png',
       click_func: function () { self.stop() }
     })
@@ -161,23 +171,15 @@ Page({
     } catch (e) {}
   },
 
-  // Restore the system's default gesture handling for the other pages.
-  restoreGestures() {
-    try {
-      if (hmApp.unregisterGestureEvent) {
-        hmApp.unregisterGestureEvent()
-      } else {
-        hmApp.registerGestureEvent(function () { return false })
-      }
-    } catch (e) {}
-  },
-
-  // Show play when paused/finished, pause when running.
+  // Play when paused, pause when running. Once the workout is done there is nothing left to
+  // resume, so both are hidden and only the centred stop button remains.
   updateToggle() {
     var s = this.state
-    var showPlay = !s.session || s.session.paused || s.session.finishedBuzzed
-    s.playBtn.setProperty(hmUI.prop.VISIBLE, showPlay)
-    s.pauseBtn.setProperty(hmUI.prop.VISIBLE, !showPlay)
+    var done = !s.session || s.session.finishedBuzzed
+    s.playBtn.setProperty(hmUI.prop.VISIBLE, !done && s.session.paused)
+    s.pauseBtn.setProperty(hmUI.prop.VISIBLE, !done && !s.session.paused)
+    s.stopBtn.setProperty(hmUI.prop.VISIBLE, !done)
+    s.stopBtnDone.setProperty(hmUI.prop.VISIBLE, done)
   },
 
   startTimer() {
@@ -337,13 +339,21 @@ Page({
     this.state.session = null
     this.clearTimer()
     vibrateStop()
-    try { hmApp.goBack() } catch (e) {}
+    // Replace this page with the menu. goBack() exits the app to the watch face when the
+    // workout page was launched straight from an alarm (nothing on the back stack) — that
+    // was the black screen before the watch face after finishing.
+    try {
+      hmApp.reloadPage({ url: 'page/index' })
+    } catch (e) {
+      try { hmApp.goBack() } catch (e2) {}
+    }
   },
 
   onDestroy() {
     // Do NOT cancel the alarm here — screen-off may destroy this page, and the pending alarm
     // is what keeps the interval buzzes going. Stop is what ends the workout + cancels it.
-    this.restoreGestures()
+    // Gestures are not reset here: each page registers its own handler in build(), and doing
+    // it on destroy could overwrite the handler the next page just installed.
     this.clearTimer()
     vibrateStop()
   }

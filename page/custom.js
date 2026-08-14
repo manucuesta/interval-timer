@@ -31,6 +31,12 @@ Page({
     var self = this
     var s = this.state
 
+    // Gesture handling is app-wide and the last registration wins, so each page sets its
+    // own policy on build. Here the default is right: swipe right returns to the menu.
+    try {
+      hmApp.registerGestureEvent(function () { return false })
+    } catch (e) {}
+
     s.nameT = hmUI.createWidget(hmUI.widget.TEXT, {
       x: 0, y: 52, w: SIZE.w, h: 44, color: 0x4aa3ff, text_size: 38,
       align_h: hmUI.align.CENTER_H, align_v: hmUI.align.CENTER_V, text: ''
